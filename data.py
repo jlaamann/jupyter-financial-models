@@ -24,6 +24,7 @@ def calculate_stock_metrics(ticker_symbol):
         financials = stock.financials
         balance_sheet = stock.balance_sheet
         cashflow = stock.cashflow
+        quarterly_financials = stock.quarterly_financials
 
         # Check if essential dataframes are empty
         if financials.empty or balance_sheet.empty or cashflow.empty:
@@ -65,6 +66,8 @@ def calculate_stock_metrics(ticker_symbol):
         'ROIC': None,
     }
 
+    ttm_data = quarterly_financials.iloc[:, :4].sum(axis=1)
+
     # --- 1. Get Enterprise Value (EV) ---
     ev = info.get('enterpriseValue')
     metrics['Enterprise Value (EV)'] = ev
@@ -74,8 +77,8 @@ def calculate_stock_metrics(ticker_symbol):
     metrics['Free Cash Flow (FCF)'] = fcf
 
     # --- 3. Get EBITDA ---
-    ebitda = financials.iloc[:, 0].get('EBITDA')
-    metrics['EBITDA'] = ebitda
+    # ebitda = financials.iloc[:, 0].get('EBITDA')
+    metrics['EBITDA'] = ttm_data.get('EBITDA')
 
     # --- 4. Get Total Debt ---
     if not balance_sheet.empty:
@@ -84,7 +87,7 @@ def calculate_stock_metrics(ticker_symbol):
         long_term_debt = latest_bs.get('Long Term Debt', 0)
 
         # Sometimes 'Total Debt' exists directly
-        total_debt_direct = latest_bs.get('Total Debt')
+        total_debt_direct = info.get('totalDebt')
 
         if total_debt_direct is not None:
              total_debt = total_debt_direct
@@ -113,10 +116,9 @@ def calculate_stock_metrics(ticker_symbol):
     # NOPAT = EBIT * (1 - Tax Rate)
     # Tax Rate = Tax Expense / Earnings Before Tax (EBT)
     if not financials.empty:
-        latest_fin = financials.iloc[:, 0]
-        ebit = latest_fin.get('EBIT')
-        tax_expense = latest_fin.get('Tax Provision')
-        ebt = latest_fin.get('Pretax Income') # Earnings Before Tax
+        ebit = ttm_data.get('EBIT')
+        tax_expense = ttm_data.get('Tax Provision')
+        ebt = ttm_data.get('Pretax Income') # Earnings Before Tax
 
         metrics['EBIT'] = ebit # Store EBIT for reference
 
