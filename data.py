@@ -70,11 +70,11 @@ def calculate_stock_metrics(ticker_symbol):
     metrics['Enterprise Value (EV)'] = ev
 
     # --- 2. Get Free Cash Flow (FCF) ---
-    fcf = info.get('freeCashflow')
+    fcf = cashflow.iloc[:, 0].get('Free Cash Flow')
     metrics['Free Cash Flow (FCF)'] = fcf
 
     # --- 3. Get EBITDA ---
-    ebitda = info.get('ebitda')
+    ebitda = financials.iloc[:, 0].get('EBITDA')
     metrics['EBITDA'] = ebitda
 
     # --- 4. Get Total Debt ---
