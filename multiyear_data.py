@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import sys 
+from tabulate import tabulate  # Add this import at the top of your file
 
 # Suppress potential SettingWithCopyWarning from pandas if chained assignment occurs internally
 pd.options.mode.chained_assignment = None # default='warn'
@@ -41,8 +42,6 @@ def calculate_stock_metrics_multiyear(ticker_symbol):
     # Iterate through each year (column) in the financials, balance_sheet, and cashflow
     for year in financials.columns:
         metrics = {
-            'Ticker': ticker_symbol,
-            'Year': year.year,  # Convert to year only
             'Enterprise Value (EV)': info.get('enterpriseValue'),
             'Free Cash Flow (FCF)': None,
             'EBITDA': None,
@@ -101,9 +100,17 @@ def calculate_stock_metrics_multiyear(ticker_symbol):
             metrics['Tax Rate'] = None
             metrics['NOPAT'] = None
 
+        # --- Find Operating Leases ---
+        if not balance_sheet.empty:
+            op_leases = balance_sheet.loc['Long Term Capital Lease Obligation',year] + balance_sheet.loc['Current Capital Lease Obligation',year]
+            metrics['Operating Lease Liabilities'] = op_leases
+        else:
+            print("Warning: Cannot check for Operating Leases due to missing balance sheet.")
+            metrics['Operating Lease Liabilities'] = 0 # Default
+
         # Calculate Invested Capital
         try:
-            metrics['Invested Capital'] = metrics['Total Debt'] + metrics['Total Equity']
+            metrics['Invested Capital'] = metrics['Total Debt'] + metrics['Total Equity'] + metrics['Operating Lease Liabilities']
         except TypeError:
             metrics['Invested Capital'] = None
 
@@ -127,45 +134,8 @@ def calculate_stock_metrics_multiyear(ticker_symbol):
 
     return metrics_by_year
 
-
-def display_metrics(metrics):
-    """Nicely prints the calculated metrics."""
-    if metrics is None:
-        print("No metrics to display.")
-        return
-
-    print("\n--- Calculated Metrics ---")
-    print(f"Ticker: {metrics.get('Ticker', 'N/A')}")
-
-    print("\nKey Ratios:")
-    print(f"  EV/FCF Yield (FCF/EV): {metrics.get('EV/FCF Yield', 'N/A'):.2%}" if isinstance(metrics.get('EV/FCF Yield'), (int, float)) else f"  EV/FCF Yield (FCF/EV): {metrics.get('EV/FCF Yield', 'N/A')}")
-    print(f"  Total Debt / EBITDA:   {metrics.get('Total Debt / EBITDA', 'N/A'):.2f}" if isinstance(metrics.get('Total Debt / EBITDA'), (int, float)) else f"  Total Debt / EBITDA:   {metrics.get('Total Debt / EBITDA', 'N/A')}")
-    print(f"  EV / EBITDA:           {metrics.get('EV / EBITDA', 'N/A'):.2f}" if isinstance(metrics.get('EV / EBITDA'), (int, float)) else f"  EV / EBITDA:           {metrics.get('EV / EBITDA', 'N/A')}")
-    print(f"  ROIC (NOPAT/Inv Cap):  {metrics.get('ROIC', 'N/A'):.2%}" if isinstance(metrics.get('ROIC'), (int, float)) else f"  ROIC (NOPAT/Inv Cap):  {metrics.get('ROIC', 'N/A')}")
-    print(f"  ROE:  {metrics.get('ROE', 'N/A'):.2%}" if isinstance(metrics.get('ROE'), (int, float)) else f"  ROE:  {metrics.get('ROE', 'N/A')}")
-    print(f"  ROA:  {metrics.get('ROA', 'N/A'):.2%}" if isinstance(metrics.get('ROA'), (int, float)) else f"  ROA:  {metrics.get('ROA', 'N/A')}")
-    print(f"  EBITDA margin:  {metrics.get('EBITDA_MARGIN', 'N/A'):.2%}" if isinstance(metrics.get('EBITDA_MARGIN'), (int, float)) else f"  EBITDA_MARGIN:  {metrics.get('EBITDA_MARGIN', 'N/A')}")
-
-    if metrics.get('Operating Lease Liabilities', 0) == 0:
-         print("     (Note: ROIC calculated excluding Operating Lease Liabilities as they were not found)")
-
-
-    print("\nComponents Used (Latest Available Data):")
-    print(f"  Enterprise Value (EV):       {metrics.get('Enterprise Value (EV)', 'N/A'):,.0f}" if isinstance(metrics.get('Enterprise Value (EV)'), (int, float)) else f"  Enterprise Value (EV):       {metrics.get('Enterprise Value (EV)', 'N/A')}")
-    print(f"  Free Cash Flow (FCF):        {metrics.get('Free Cash Flow (FCF)', 'N/A'):,.0f}" if isinstance(metrics.get('Free Cash Flow (FCF)'), (int, float)) else f"  Free Cash Flow (FCF):        {metrics.get('Free Cash Flow (FCF)', 'N/A')}")
-    print(f"  EBITDA:                      {metrics.get('EBITDA', 'N/A'):,.0f}" if isinstance(metrics.get('EBITDA'), (int, float)) else f"  EBITDA:                      {metrics.get('EBITDA', 'N/A')}")
-    print(f"  Total Debt:                  {metrics.get('Total Debt', 'N/A'):,.0f}" if isinstance(metrics.get('Total Debt'), (int, float)) else f"  Total Debt:                  {metrics.get('Total Debt', 'N/A')}")
-    print(f"  Total Equity:                {metrics.get('Total Equity', 'N/A'):,.0f}" if isinstance(metrics.get('Total Equity'), (int, float)) else f"  Total Equity:                {metrics.get('Total Equity', 'N/A')}")
-    print(f"  EBIT:                        {metrics.get('EBIT', 'N/A'):,.0f}" if isinstance(metrics.get('EBIT'), (int, float)) else f"  EBIT:                        {metrics.get('EBIT', 'N/A')}")
-    print(f"  Est. Tax Rate (for NOPAT):   {metrics.get('Tax Rate', 'N/A'):.2%}" if isinstance(metrics.get('Tax Rate'), (int, float)) else f"  Est. Tax Rate (for NOPAT):   {metrics.get('Tax Rate', 'N/A')}")
-    print(f"  NOPAT:                       {metrics.get('NOPAT', 'N/A'):,.0f}" if isinstance(metrics.get('NOPAT'), (int, float)) else f"  NOPAT:                       {metrics.get('NOPAT', 'N/A')}")
-    print(f"  Operating Lease Liabilities: {metrics.get('Operating Lease Liabilities', 'N/A'):,.0f}" if isinstance(metrics.get('Operating Lease Liabilities'), (int, float)) else f"  Operating Lease Liabilities: {metrics.get('Operating Lease Liabilities', 'N/A')}")
-    print(f"  Invested Capital:            {metrics.get('Invested Capital', 'N/A'):,.0f}" if isinstance(metrics.get('Invested Capital'), (int, float)) else f"  Invested Capital:            {metrics.get('Invested Capital', 'N/A')}")
-    print("--- End of Report ---")
-
-
 def display_metrics_multiyear(metrics_by_year):
-    """Displays the calculated metrics for each year in a table format."""
+    """Displays the calculated metrics for each year in a proper table format."""
     if not metrics_by_year:
         print("No metrics to display.")
         return
@@ -176,11 +146,8 @@ def display_metrics_multiyear(metrics_by_year):
     years = list(metrics_by_year.keys())
     metrics_keys = list(metrics_by_year[years[0]].keys()) if years else []
 
-    # Prepare the header row (years)
-    header = ["Metric"] + [str(year.year) for year in years]  # Convert years to string
-    print("\t".join(header))
-
-    # Prepare each metric row
+    # Prepare the table data
+    table = []
     for key in metrics_keys:
         row = [key]
         for year in years:
@@ -189,12 +156,24 @@ def display_metrics_multiyear(metrics_by_year):
                 if "Rate" in key or "ROIC" in key or "Yield" in key:
                     # Format as percentage
                     row.append(f"{value:.2%}")
+                elif "Total Debt / EBITDA" in key:
+                    # Format as ratio
+                    row.append(f"{value:.2f}")
+                elif "EV / EBITDA" in key:
+                    # Format as ratio
+                    row.append(f"{value:.1f}")
                 else:
                     # Format as currency with commas
                     row.append(f"{value:,.0f}")
             else:
                 row.append(str(value))
-        print("\t".join(row))
+        table.append(row)
+
+    # Prepare the header row (years)
+    header = [""] + [str(year.year) for year in years]  # Convert years to string
+
+    # Print the table using tabulate
+    print(tabulate(table, headers=header, tablefmt="grid"))
 
 
 if __name__ == "__main__":
